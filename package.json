@@ -1,0 +1,43 @@
+{
+  "name": "findly-client-logger",
+  "description": "Common JS logging library on the browser",
+  "version": "0.1.0",
+  "homepage": "https://github.com/Denny Riadi/Findly.ClientLogger",
+  "author": {
+    "name": "Denny Riadi",
+    "email": "denny.riadi@findly.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/Denny Riadi/Findly.ClientLogger.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Denny Riadi/Findly.ClientLogger/issues"
+  },
+  "licenses": [
+    {
+      "type": "Findly",
+      "url": "https://github.com/Denny Riadi/Findly.ClientLogger/blob/master/LICENSE-Findly"
+    }
+  ],
+  "private": true,
+  "main": "./src/logger.js",
+  "engines": {
+    "node": "0.12.0"
+  },
+  "scripts": {
+    "test": "gulp test"
+  },
+  "devDependencies": {
+    "browserify": "^9.0.3",
+    "gulp": "^3.8.11",
+    "gulp-jshint": "^1.9.2",
+    "jshint-stylish": "^1.0.1",
+    "run-sequence": "^1.0.2",
+    "vinyl-source-stream": "^1.1.0"
+  },
+  "keywords": [],
+  "dependencies": {
+    "lodash": "^3.5.0"
+  }
+}
