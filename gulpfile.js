@@ -21,20 +21,13 @@ gulp.task('lint', function () {
     .pipe(jshint())
     .pipe(jshint.reporter(stylish));
 });
-//
-//gulp.task('build', function () {
-//  return browserify(pkg.main, { standalone: 'FindlyLogger' })
-//    .bundle()
-//    .pipe(source('findly.logger.js'))
-//    .pipe(gulp.dest('dist/'));
-//});
 
 gulp.task('build', function () {
   var destDir = './dist/';
 
   function browserifyOutput() {
     for (var prop in outputFilenames) {
-      var b = browserify(pkg.main, { standalone: 'FindlyLogger' })
+      var b = browserify(pkg.main)
         .bundle()
         .pipe(source(outputFilenames[prop]))
         .pipe(buffer());

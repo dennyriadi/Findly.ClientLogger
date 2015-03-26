@@ -47,6 +47,11 @@ function validateAppender(name) {
   }
 }
 
+levelEnums = logUtils.reduce(logLevels, {}, function(result, key) {
+  result[key] = key;
+  return result;
+});
+
 FindlyLog.logLevel = function(level) {
   if (arguments.length === 0) {
     return config.level();
@@ -96,11 +101,6 @@ FindlyLog.removeLogEntriesAppender = function() {
     delete logAppenders.logentries;
   }
 };
-
-levelEnums = logUtils.reduce(logLevels, {}, function(result, key) {
-  result[key] = key;
-  return result;
-});
 
 FindlyLog.levels = levelEnums;
 
