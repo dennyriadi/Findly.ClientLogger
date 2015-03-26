@@ -34,6 +34,8 @@
     "gulp-jshint": "^1.9.2",
     "jshint-stylish": "^1.0.1",
     "run-sequence": "^1.0.2",
+    "uglify": "^0.1.1",
+    "vinyl-buffer": "^1.0.0",
     "vinyl-source-stream": "^1.1.0"
   },
   "keywords": [],

@@ -18,15 +18,3 @@ module.exports = logUtils.reduce(config, {}, function(result, key) {
   };
   return result;
 });
-
-//
-//module.exports = _.reduce(config, function(result, n, key) {
-//  result[key] = function(value) {
-//    if (arguments.length === 0) {
-//      return config[key];
-//    } else {
-//      config[key] = value;
-//    }
-//  };
-//  return result;
-//}, {});

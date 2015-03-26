@@ -10,7 +10,7 @@ function handler(logEvent) {
     var logFunc = le[logLevels[logEvent.level].name];
 
     if (logUtils.isFunction(logFunc)) {
-      logFunc(logEvent.message);
+      logFunc(logEvent);
     }
   } catch (ex) {
     // do nothing

@@ -8,14 +8,10 @@ var logUtils = require('./log-utils.js'),
   LogentriesAppender = require('./appenders/logentries.js'),
   CustomAppender = require('./appenders/custom.js');
 
-//
-//logUtils.transform(logLevels, function(result, n, key) {
-//  result[key] = key;
-//});
-
 var levelEnums = {},
   loggers = {},
   logAppenders = {},
+  reservedAppenderNames = ['console', 'logentries'],
   FindlyLog = {};
 
 function createConsoleAppender() {
@@ -25,9 +21,25 @@ function createConsoleAppender() {
   }
 }
 
+function isReservedAppenderName(name) {
+  var result = false;
+  name = name.toLowerCase();
+  for (var i = 0; i < reservedAppenderNames.length; i++) {
+    if (name === reservedAppenderNames[i]) {
+      result = true;
+      break;
+    }
+  }
+  return result;
+}
+
 function validateAppender(name) {
-  if (!logUtils.isString(name) || !name || name === 'console') {
+  if (!logUtils.isString(name) || !name ) {
     throw new Error('Invalid appender name.');
+  }
+
+  if (isReservedAppenderName(name)) {
+    throw new Error('Cannot use a reserved appender name.');
   }
 
   if (logAppenders.hasOwnProperty(name)) {
@@ -57,7 +69,7 @@ FindlyLog.getLogger = function(logName) {
 };
 
 FindlyLog.addCustomAppender = function (name, handler) {
-  validateAppender(name, handler);
+  validateAppender(name);
 
   if (!logUtils.isFunction(handler)) {
     throw new Error('Invalid handler function.');
@@ -66,14 +78,22 @@ FindlyLog.addCustomAppender = function (name, handler) {
   logAppenders[name] = new CustomAppender(handler);
 };
 
-FindlyLog.addLogEntriesAppender = function(token) {
-  validateAppender(token);
-  logAppenders[token] = new LogentriesAppender(token);
+FindlyLog.removeCustomAppender = function(name) {
+  if (!isReservedAppenderName(name) && logAppenders.hasOwnProperty(name)) {
+    delete logAppenders[name];
+  }
 };
 
-FindlyLog.removeAppender = function(name) {
-  if (logAppenders.hasOwnProperty(name)) {
-    delete logAppenders[name];
+FindlyLog.addLogEntriesAppender = function(token) {
+  if (logAppenders.logentries) {
+    throw new Error('There is an existing logentries appender.');
+  }
+  logAppenders.logentries = new LogentriesAppender(token);
+};
+
+FindlyLog.removeLogEntriesAppender = function() {
+  if (logAppenders.logentries) {
+    delete logAppenders.logentries;
   }
 };
 

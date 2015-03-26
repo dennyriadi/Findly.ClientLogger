@@ -14,23 +14,33 @@ logUtils.isObject = function(input) {
   return (typeof input === 'object' && input);
 };
 
-logUtils.forEach = function(array, func) {
-  if (!array.hasOwnProperty('length')) {
+logUtils.isArray = function(input) {
+  return this.isObject(input) && (typeof input.length === 'number');
+};
+
+logUtils.forEach = function(coll, func) {
+  if (this.isArray(coll)) {
+    for (var i = 0; i < coll.length; i++) {
+      func(coll[i]);
+    }
+  }
+
+  if (!this.isObject(coll)) {
     return;
   }
 
-  for (var i = 0; i < array.length; i++) {
-    func(array[i]);
+  for (var prop in coll) {
+    if (coll.hasOwnProperty(prop)) {
+      func(prop, coll[prop]);
+    }
   }
 };
 
-logUtils.reduce = function(obj, baseValue, func) {
+logUtils.reduce = function(coll, baseValue, func) {
   var base = baseValue;
-  for (var prop in obj) {
-    if (obj.hasOwnProperty(prop)) {
-      base = func(base, prop, obj[prop]);
-    }
-  }
+  logUtils.forEach(coll, function(k, v) {
+    base = func(base, k, v);
+  });
   return base;
 };
 
