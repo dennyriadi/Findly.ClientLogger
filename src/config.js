@@ -1,7 +1,5 @@
 'use strict';
 
-//var _ = require('lodash');
-
 var logUtils = require('./log-utils.js');
 
 var config = {

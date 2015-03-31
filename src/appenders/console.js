@@ -1,8 +1,9 @@
 'use strict';
 
-var logUtils = require('../log-utils.js'),
+var util = require('util'),
+  logUtils = require('../log-utils.js'),
   logLevels = require('../log-level.js'),
-  logEmitter = require('../log-emitter.js');
+  Appender = require('./appender.js');
 
 function handler(logEvent) {
   try {
@@ -22,8 +23,9 @@ function ConsoleAppender() {
   if (!window.console) {
     return;
   }
-
-  logEmitter.listen(handler);
+  Appender.call(this, 'console', handler);
 }
+
+util.inherits(ConsoleAppender, Appender);
 
 module.exports = ConsoleAppender;

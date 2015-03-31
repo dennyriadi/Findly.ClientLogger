@@ -13,9 +13,9 @@ if (typeof window.define === 'function' && window.define.amd) {
   module.exports = createLog();
 } else {
   // No AMD or CommonJS support so we place log4javascript in (probably) the global variable
-  window.FindlyLogger = createLog();
+  window.FindlyLog = createLog();
 }
-},{"./findly-log.js":8}],2:[function(require,module,exports){
+},{"./findly-log.js":12}],2:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -319,394 +319,710 @@ function isUndefined(arg) {
 }
 
 },{}],3:[function(require,module,exports){
-/**
- * @license Copyright 2013 Logentries.
- * Please view license at https://raw.github.com/logentries/le_js/master/LICENSE
- */
-
-/*global define, module, exports */
-
-/** @param {Object} window */
-(function (root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        // AMD. Register as an anonymous module.
-        define([root], factory);
-    } else if (typeof exports === 'object') {
-        // Node. Does not work with strict CommonJS, but
-        // only CommonJS-like environments that support module.exports,
-        // like Node.
-        module.exports = factory(root);
-    } else {
-        // Browser globals (root is window)
-        root.LE = factory(root);
-    }
-}(this, function(window) {
-    "use strict";
-
-    /**
-     * A single log event stream.
-     * @constructor
-     * @param {Object} options
-     */
-    function LogStream(options) {
-        /**
-         * @const
-         * @type {string} */
-        var _traceCode = (Math.random() + Math.PI).toString(36).substring(2, 10);
-        /** @type {boolean} */
-        var _doTrace = options.trace;
-        /** @type {string} */
-        var _pageInfo = options.page_info;
-        /** @type {string} */
-        var _token = options.token;
-        /** @type {boolean} */
-        var _print = options.print;
-        /**
-         * @const
-         * @type {string} */
-        var _endpoint = "js.logentries.com/v1";
-
-        /**
-         * Flag to prevent further invocations on network err
-         ** @type {boolean} */
-        var _shouldCall = true;
-        /** @type {boolean} */
-        var _SSL = function() {
-            if (typeof XDomainRequest === "undefined") {
-                return options.ssl;
-            }
-            // If we're relying on XDomainRequest, we
-            // must adhere to the page's encryption scheme.
-            return window.location.protocol === "https:" ? true : false;
-        }();
-        /** @type {Array.<string>} */
-        var _backlog = [];
-        /** @type {boolean} */
-        var _active = false;
-        /** @type {boolean} */
-        var _sentPageInfo = false;
-
-        if (options.catchall) {
-            var oldHandler = window.onerror;
-            var newHandler = function(msg, url, line) {
-                _rawLog({error: msg, line: line, location: url}).level('ERROR').send();
-                if (oldHandler) {
-                    return oldHandler(msg, url, line);
-                } else {
-                    return false;
-                }
-            };
-            window.onerror = newHandler;
-        }
-
-        var _agentInfo = function() {
-            var nav = window.navigator || {doNotTrack: undefined};
-            var screen = window.screen || {};
-            var location = window.location || {};
-
-            return {
-              url: location.pathname,
-              referrer: document.referrer,
-              screen: {
-                width: screen.width,
-                height: screen.height
-              },
-              window: {
-                width: window.innerWidth,
-                height: window.innerHeight
-              },
-              browser: {
-                name: nav.appName,
-                version: nav.appVersion,
-                cookie_enabled: nav.cookieEnabled,
-                do_not_track: nav.doNotTrack
-              },
-              platform: nav.platform
-            }
-        };
-
-        var _getEvent = function() {
-            var raw = null;
-            var args = Array.prototype.slice.call(arguments);
-            if (args.length === 0) {
-                throw new Error("No arguments!");
-            } else if (args.length === 1) {
-                raw = args[0];
-            } else {
-                // Handle a variadic overload,
-                // e.g. _rawLog("some text ", x, " ...", 1);
-              raw = args;
-            }
-            return raw;
-        };
-
-        // Single arg stops the compiler arity warning
-        var _rawLog = function(msg) {
-            var event = _getEvent.apply(this, arguments);
-
-            var data = {event: event};
-
-            // Add agent info if required
-            if (_pageInfo !== 'never') {
-                if (!_sentPageInfo || _pageInfo === 'per-entry') {
-                    _sentPageInfo = true;
-                    if (typeof event.screen === "undefined" &&
-                        typeof event.browser === "undefined")
-                      _rawLog(_agentInfo()).level('PAGE').send();
-                }
-            }
-
-            // Add trace code if required
-            if (_doTrace) {
-                data.trace = _traceCode;
-            }
-
-            return {level: function(l) {
-                // Don't log PAGE events to console
-                // PAGE events are generated for the agentInfo function
-                    if (_print && typeof console !== "undefined" && l !== 'PAGE') {
-                      try {
-                        console[l.toLowerCase()].call(console, data);
-                      } catch (ex) {
-                        // IE compat fix
-                        console.log(data);
-                      }
-                    }
-                    data.level = l;
-
-                    return {send: function() {
-                        var cache = [];
-                        var serialized = JSON.stringify(data, function(key, value) {
-
-                          // cross-browser indexOf fix
-                          var _indexOf = function(array, obj) {
-                            for (var i = 0; i < array.length; i++) {
-                              if (obj === array[i]) {
-                                return i;
-                              }
-                            }
-                            return -1;
-                          }
-                              if (typeof value === "undefined") {
-                                return "undefined";
-                              } else if (typeof value === "object" && value !== null) {
-                                if (_indexOf(cache, value) !== -1) {
-                                  // We've seen this object before;
-                                  // return a placeholder instead to prevent
-                                  // cycles
-                                  return "<?>";
-                                }
-                                cache.push(value);
-                              }
-                          return value;
-                        });
-
-                            if (_active) {
-                                _backlog.push(serialized);
-                            } else {
-                                _apiCall(_token, serialized);
-                            }
-                        }};
-                }};
-        };
-
-        /** @expose */
-        this.log = _rawLog;
-
-        var _apiCall = function(token, data) {
-            _active = true;
-
-            // Obtain a browser-specific XHR object
-            var _getAjaxObject = function() {
-              if (typeof XDomainRequest !== "undefined") {
-                // We're using IE8/9
-                return new XDomainRequest();
-              }
-              return new XMLHttpRequest();
-            };
-
-            var request = _getAjaxObject();
-
-            if (_shouldCall) {
-                if (request.constructor === XMLHttpRequest) {
-                    // Currently we don't support fine-grained error
-                    // handling in older versions of IE
-                    request.onreadystatechange = function() {
-                    if (request.readyState === 4) {
-                        // Handle any errors
-                        if (request.status >= 400) {
-                            console.error("Couldn't submit events.");
-                            if (request.status === 410) {
-                                // This API version has been phased out
-                                console.warn("This version of le_js is no longer supported!");
-                            }
-                        } else {
-                            if (request.status === 301) {
-                                // Server issued a deprecation warning
-                                console.warn("This version of le_js is deprecated! Consider upgrading.");
-                            }
-                            if (_backlog.length > 0) {
-                                // Submit the next event in the backlog
-                                _apiCall(token, _backlog.shift());
-                            } else {
-                                _active = false;
-                            }
-                        }
-                    }
-
-                    }
-                } else {
-                  request.onload = function() {
-                    if (_backlog.length > 0) {
-                      // Submit the next event in the backlog
-                      _apiCall(token, _backlog.shift());
-                    } else {
-                      _active = false;
-                    }
-                  }
-                }
-
-                var uri = (_SSL ? "https://" : "http://") + _endpoint + "/logs/" + _token;
-                request.open("POST", uri, true);
-                if (request.constructor === XMLHttpRequest) {
-                    request.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-                    request.setRequestHeader('Content-type', 'text/json');
-                }
-                request.send(data);
-            }
-        };
-    }
-
-    /**
-     * A single log object
-     * @constructor
-     * @param {Object} options
-     */
-    function Logger(options) {
-        var logger;
-
-        // Default values
-        var dict = {
-            ssl: true,
-            catchall: false,
-            trace: true,
-            page_info: 'never',
-            print: false,
-            token: null
-        };
-
-        if (typeof options === "object")
-            for (var k in options)
-                dict[k] = options[k];
-        else
-            throw new Error("Invalid parameters for createLogStream()");
-
-        if (dict.token === null) {
-            throw new Error("Token not present.");
-        } else {
-            logger = new LogStream(dict);
-        }
-
-        var _log = function(msg) {
-            if (logger) {
-                return logger.log.apply(this, arguments);
-            } else
-                throw new Error("You must call LE.init(...) first.");
-        };
-
-         // The public interface
-        return {
-            log: function() {
-                _log.apply(this, arguments).level('LOG').send();
-            },
-            warn: function() {
-                _log.apply(this, arguments).level('WARN').send();
-            },
-            error: function() {
-                _log.apply(this, arguments).level('ERROR').send();
-            },
-            info: function() {
-                _log.apply(this, arguments).level('INFO').send();
-            }
-        };
-    }
-
-    // Array of Logger elements
-    var loggers = {};
-
-    var _getLogger = function(name) {
-        if (!loggers.hasOwnProperty(name))
-           throw new Error("Invalid name for logStream");
-
-        return loggers[name]
-    };
-
-    var  _createLogStream = function(options) {
-        if (typeof options.name !== "string")
-            throw new Error("Name not present.");
-        else if (loggers.hasOwnProperty(options.name))
-            throw new Error("Already exist this name for a logStream");
-
-        loggers[options.name] = new Logger(options);
-
-        return true;
-    };
-
-    var _deprecatedInit = function(options) {
-        var dict = {
-            name : "default"
-        };
-
-        if (typeof options === "object")
-            for (var k in options)
-                dict[k] = options[k];
-        else if (typeof options === "string")
-            dict.token = options;
-        else
-            throw new Error("Invalid parameters for init()");
-
-        return _createLogStream(dict);
-    };
-
-    var _destroyLogStream = function(name) {
-        if (typeof name === 'undefined'){
-            name = 'default';
-        }
-
-        delete loggers[name];
-    };
-
-    // The public interface
-    return {
-        init: _deprecatedInit,
-        createLogStream: _createLogStream,
-        to: _getLogger,
-        destroy: _destroyLogStream,
-        log: function() {
-            for (var k in loggers)
-                loggers[k].log.apply(this, arguments);
-        },
-        warn: function() {
-            for (var k in loggers)
-                loggers[k].warn.apply(this, arguments);
-        },
-        error: function() {
-            for (var k in loggers)
-                loggers[k].error.apply(this, arguments);
-        },
-        info: function() {
-            for (var k in loggers)
-                loggers[k].info.apply(this, arguments);
-        }
-    };
-}));
+if (typeof Object.create === 'function') {
+  // implementation from standard node.js 'util' module
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    ctor.prototype = Object.create(superCtor.prototype, {
+      constructor: {
+        value: ctor,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      }
+    });
+  };
+} else {
+  // old school shim for old browsers
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    var TempCtor = function () {}
+    TempCtor.prototype = superCtor.prototype
+    ctor.prototype = new TempCtor()
+    ctor.prototype.constructor = ctor
+  }
+}
 
 },{}],4:[function(require,module,exports){
+// shim for using process in browser
+
+var process = module.exports = {};
+var queue = [];
+var draining = false;
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    draining = true;
+    var currentQueue;
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        var i = -1;
+        while (++i < len) {
+            currentQueue[i]();
+        }
+        len = queue.length;
+    }
+    draining = false;
+}
+process.nextTick = function (fun) {
+    queue.push(fun);
+    if (!draining) {
+        setTimeout(drainQueue, 0);
+    }
+};
+
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+// TODO(shtylman)
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],5:[function(require,module,exports){
+module.exports = function isBuffer(arg) {
+  return arg && typeof arg === 'object'
+    && typeof arg.copy === 'function'
+    && typeof arg.fill === 'function'
+    && typeof arg.readUInt8 === 'function';
+}
+},{}],6:[function(require,module,exports){
+(function (process,global){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var formatRegExp = /%[sdj%]/g;
+exports.format = function(f) {
+  if (!isString(f)) {
+    var objects = [];
+    for (var i = 0; i < arguments.length; i++) {
+      objects.push(inspect(arguments[i]));
+    }
+    return objects.join(' ');
+  }
+
+  var i = 1;
+  var args = arguments;
+  var len = args.length;
+  var str = String(f).replace(formatRegExp, function(x) {
+    if (x === '%%') return '%';
+    if (i >= len) return x;
+    switch (x) {
+      case '%s': return String(args[i++]);
+      case '%d': return Number(args[i++]);
+      case '%j':
+        try {
+          return JSON.stringify(args[i++]);
+        } catch (_) {
+          return '[Circular]';
+        }
+      default:
+        return x;
+    }
+  });
+  for (var x = args[i]; i < len; x = args[++i]) {
+    if (isNull(x) || !isObject(x)) {
+      str += ' ' + x;
+    } else {
+      str += ' ' + inspect(x);
+    }
+  }
+  return str;
+};
+
+
+// Mark that a method should not be used.
+// Returns a modified function which warns once by default.
+// If --no-deprecation is set, then it is a no-op.
+exports.deprecate = function(fn, msg) {
+  // Allow for deprecating things in the process of starting up.
+  if (isUndefined(global.process)) {
+    return function() {
+      return exports.deprecate(fn, msg).apply(this, arguments);
+    };
+  }
+
+  if (process.noDeprecation === true) {
+    return fn;
+  }
+
+  var warned = false;
+  function deprecated() {
+    if (!warned) {
+      if (process.throwDeprecation) {
+        throw new Error(msg);
+      } else if (process.traceDeprecation) {
+        console.trace(msg);
+      } else {
+        console.error(msg);
+      }
+      warned = true;
+    }
+    return fn.apply(this, arguments);
+  }
+
+  return deprecated;
+};
+
+
+var debugs = {};
+var debugEnviron;
+exports.debuglog = function(set) {
+  if (isUndefined(debugEnviron))
+    debugEnviron = process.env.NODE_DEBUG || '';
+  set = set.toUpperCase();
+  if (!debugs[set]) {
+    if (new RegExp('\\b' + set + '\\b', 'i').test(debugEnviron)) {
+      var pid = process.pid;
+      debugs[set] = function() {
+        var msg = exports.format.apply(exports, arguments);
+        console.error('%s %d: %s', set, pid, msg);
+      };
+    } else {
+      debugs[set] = function() {};
+    }
+  }
+  return debugs[set];
+};
+
+
+/**
+ * Echos the value of a value. Trys to print the value out
+ * in the best way possible given the different types.
+ *
+ * @param {Object} obj The object to print out.
+ * @param {Object} opts Optional options object that alters the output.
+ */
+/* legacy: obj, showHidden, depth, colors*/
+function inspect(obj, opts) {
+  // default options
+  var ctx = {
+    seen: [],
+    stylize: stylizeNoColor
+  };
+  // legacy...
+  if (arguments.length >= 3) ctx.depth = arguments[2];
+  if (arguments.length >= 4) ctx.colors = arguments[3];
+  if (isBoolean(opts)) {
+    // legacy...
+    ctx.showHidden = opts;
+  } else if (opts) {
+    // got an "options" object
+    exports._extend(ctx, opts);
+  }
+  // set default options
+  if (isUndefined(ctx.showHidden)) ctx.showHidden = false;
+  if (isUndefined(ctx.depth)) ctx.depth = 2;
+  if (isUndefined(ctx.colors)) ctx.colors = false;
+  if (isUndefined(ctx.customInspect)) ctx.customInspect = true;
+  if (ctx.colors) ctx.stylize = stylizeWithColor;
+  return formatValue(ctx, obj, ctx.depth);
+}
+exports.inspect = inspect;
+
+
+// http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
+inspect.colors = {
+  'bold' : [1, 22],
+  'italic' : [3, 23],
+  'underline' : [4, 24],
+  'inverse' : [7, 27],
+  'white' : [37, 39],
+  'grey' : [90, 39],
+  'black' : [30, 39],
+  'blue' : [34, 39],
+  'cyan' : [36, 39],
+  'green' : [32, 39],
+  'magenta' : [35, 39],
+  'red' : [31, 39],
+  'yellow' : [33, 39]
+};
+
+// Don't use 'blue' not visible on cmd.exe
+inspect.styles = {
+  'special': 'cyan',
+  'number': 'yellow',
+  'boolean': 'yellow',
+  'undefined': 'grey',
+  'null': 'bold',
+  'string': 'green',
+  'date': 'magenta',
+  // "name": intentionally not styling
+  'regexp': 'red'
+};
+
+
+function stylizeWithColor(str, styleType) {
+  var style = inspect.styles[styleType];
+
+  if (style) {
+    return '\u001b[' + inspect.colors[style][0] + 'm' + str +
+           '\u001b[' + inspect.colors[style][1] + 'm';
+  } else {
+    return str;
+  }
+}
+
+
+function stylizeNoColor(str, styleType) {
+  return str;
+}
+
+
+function arrayToHash(array) {
+  var hash = {};
+
+  array.forEach(function(val, idx) {
+    hash[val] = true;
+  });
+
+  return hash;
+}
+
+
+function formatValue(ctx, value, recurseTimes) {
+  // Provide a hook for user-specified inspect functions.
+  // Check that value is an object with an inspect function on it
+  if (ctx.customInspect &&
+      value &&
+      isFunction(value.inspect) &&
+      // Filter out the util module, it's inspect function is special
+      value.inspect !== exports.inspect &&
+      // Also filter out any prototype objects using the circular check.
+      !(value.constructor && value.constructor.prototype === value)) {
+    var ret = value.inspect(recurseTimes, ctx);
+    if (!isString(ret)) {
+      ret = formatValue(ctx, ret, recurseTimes);
+    }
+    return ret;
+  }
+
+  // Primitive types cannot have properties
+  var primitive = formatPrimitive(ctx, value);
+  if (primitive) {
+    return primitive;
+  }
+
+  // Look up the keys of the object.
+  var keys = Object.keys(value);
+  var visibleKeys = arrayToHash(keys);
+
+  if (ctx.showHidden) {
+    keys = Object.getOwnPropertyNames(value);
+  }
+
+  // IE doesn't make error fields non-enumerable
+  // http://msdn.microsoft.com/en-us/library/ie/dww52sbt(v=vs.94).aspx
+  if (isError(value)
+      && (keys.indexOf('message') >= 0 || keys.indexOf('description') >= 0)) {
+    return formatError(value);
+  }
+
+  // Some type of object without properties can be shortcutted.
+  if (keys.length === 0) {
+    if (isFunction(value)) {
+      var name = value.name ? ': ' + value.name : '';
+      return ctx.stylize('[Function' + name + ']', 'special');
+    }
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    }
+    if (isDate(value)) {
+      return ctx.stylize(Date.prototype.toString.call(value), 'date');
+    }
+    if (isError(value)) {
+      return formatError(value);
+    }
+  }
+
+  var base = '', array = false, braces = ['{', '}'];
+
+  // Make Array say that they are Array
+  if (isArray(value)) {
+    array = true;
+    braces = ['[', ']'];
+  }
+
+  // Make functions say that they are functions
+  if (isFunction(value)) {
+    var n = value.name ? ': ' + value.name : '';
+    base = ' [Function' + n + ']';
+  }
+
+  // Make RegExps say that they are RegExps
+  if (isRegExp(value)) {
+    base = ' ' + RegExp.prototype.toString.call(value);
+  }
+
+  // Make dates with properties first say the date
+  if (isDate(value)) {
+    base = ' ' + Date.prototype.toUTCString.call(value);
+  }
+
+  // Make error with message first say the error
+  if (isError(value)) {
+    base = ' ' + formatError(value);
+  }
+
+  if (keys.length === 0 && (!array || value.length == 0)) {
+    return braces[0] + base + braces[1];
+  }
+
+  if (recurseTimes < 0) {
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    } else {
+      return ctx.stylize('[Object]', 'special');
+    }
+  }
+
+  ctx.seen.push(value);
+
+  var output;
+  if (array) {
+    output = formatArray(ctx, value, recurseTimes, visibleKeys, keys);
+  } else {
+    output = keys.map(function(key) {
+      return formatProperty(ctx, value, recurseTimes, visibleKeys, key, array);
+    });
+  }
+
+  ctx.seen.pop();
+
+  return reduceToSingleString(output, base, braces);
+}
+
+
+function formatPrimitive(ctx, value) {
+  if (isUndefined(value))
+    return ctx.stylize('undefined', 'undefined');
+  if (isString(value)) {
+    var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
+                                             .replace(/'/g, "\\'")
+                                             .replace(/\\"/g, '"') + '\'';
+    return ctx.stylize(simple, 'string');
+  }
+  if (isNumber(value))
+    return ctx.stylize('' + value, 'number');
+  if (isBoolean(value))
+    return ctx.stylize('' + value, 'boolean');
+  // For some reason typeof null is "object", so special case here.
+  if (isNull(value))
+    return ctx.stylize('null', 'null');
+}
+
+
+function formatError(value) {
+  return '[' + Error.prototype.toString.call(value) + ']';
+}
+
+
+function formatArray(ctx, value, recurseTimes, visibleKeys, keys) {
+  var output = [];
+  for (var i = 0, l = value.length; i < l; ++i) {
+    if (hasOwnProperty(value, String(i))) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          String(i), true));
+    } else {
+      output.push('');
+    }
+  }
+  keys.forEach(function(key) {
+    if (!key.match(/^\d+$/)) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          key, true));
+    }
+  });
+  return output;
+}
+
+
+function formatProperty(ctx, value, recurseTimes, visibleKeys, key, array) {
+  var name, str, desc;
+  desc = Object.getOwnPropertyDescriptor(value, key) || { value: value[key] };
+  if (desc.get) {
+    if (desc.set) {
+      str = ctx.stylize('[Getter/Setter]', 'special');
+    } else {
+      str = ctx.stylize('[Getter]', 'special');
+    }
+  } else {
+    if (desc.set) {
+      str = ctx.stylize('[Setter]', 'special');
+    }
+  }
+  if (!hasOwnProperty(visibleKeys, key)) {
+    name = '[' + key + ']';
+  }
+  if (!str) {
+    if (ctx.seen.indexOf(desc.value) < 0) {
+      if (isNull(recurseTimes)) {
+        str = formatValue(ctx, desc.value, null);
+      } else {
+        str = formatValue(ctx, desc.value, recurseTimes - 1);
+      }
+      if (str.indexOf('\n') > -1) {
+        if (array) {
+          str = str.split('\n').map(function(line) {
+            return '  ' + line;
+          }).join('\n').substr(2);
+        } else {
+          str = '\n' + str.split('\n').map(function(line) {
+            return '   ' + line;
+          }).join('\n');
+        }
+      }
+    } else {
+      str = ctx.stylize('[Circular]', 'special');
+    }
+  }
+  if (isUndefined(name)) {
+    if (array && key.match(/^\d+$/)) {
+      return str;
+    }
+    name = JSON.stringify('' + key);
+    if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
+      name = name.substr(1, name.length - 2);
+      name = ctx.stylize(name, 'name');
+    } else {
+      name = name.replace(/'/g, "\\'")
+                 .replace(/\\"/g, '"')
+                 .replace(/(^"|"$)/g, "'");
+      name = ctx.stylize(name, 'string');
+    }
+  }
+
+  return name + ': ' + str;
+}
+
+
+function reduceToSingleString(output, base, braces) {
+  var numLinesEst = 0;
+  var length = output.reduce(function(prev, cur) {
+    numLinesEst++;
+    if (cur.indexOf('\n') >= 0) numLinesEst++;
+    return prev + cur.replace(/\u001b\[\d\d?m/g, '').length + 1;
+  }, 0);
+
+  if (length > 60) {
+    return braces[0] +
+           (base === '' ? '' : base + '\n ') +
+           ' ' +
+           output.join(',\n  ') +
+           ' ' +
+           braces[1];
+  }
+
+  return braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
+}
+
+
+// NOTE: These type checking functions intentionally don't use `instanceof`
+// because it is fragile and can be easily faked with `Object.create()`.
+function isArray(ar) {
+  return Array.isArray(ar);
+}
+exports.isArray = isArray;
+
+function isBoolean(arg) {
+  return typeof arg === 'boolean';
+}
+exports.isBoolean = isBoolean;
+
+function isNull(arg) {
+  return arg === null;
+}
+exports.isNull = isNull;
+
+function isNullOrUndefined(arg) {
+  return arg == null;
+}
+exports.isNullOrUndefined = isNullOrUndefined;
+
+function isNumber(arg) {
+  return typeof arg === 'number';
+}
+exports.isNumber = isNumber;
+
+function isString(arg) {
+  return typeof arg === 'string';
+}
+exports.isString = isString;
+
+function isSymbol(arg) {
+  return typeof arg === 'symbol';
+}
+exports.isSymbol = isSymbol;
+
+function isUndefined(arg) {
+  return arg === void 0;
+}
+exports.isUndefined = isUndefined;
+
+function isRegExp(re) {
+  return isObject(re) && objectToString(re) === '[object RegExp]';
+}
+exports.isRegExp = isRegExp;
+
+function isObject(arg) {
+  return typeof arg === 'object' && arg !== null;
+}
+exports.isObject = isObject;
+
+function isDate(d) {
+  return isObject(d) && objectToString(d) === '[object Date]';
+}
+exports.isDate = isDate;
+
+function isError(e) {
+  return isObject(e) &&
+      (objectToString(e) === '[object Error]' || e instanceof Error);
+}
+exports.isError = isError;
+
+function isFunction(arg) {
+  return typeof arg === 'function';
+}
+exports.isFunction = isFunction;
+
+function isPrimitive(arg) {
+  return arg === null ||
+         typeof arg === 'boolean' ||
+         typeof arg === 'number' ||
+         typeof arg === 'string' ||
+         typeof arg === 'symbol' ||  // ES6 symbol
+         typeof arg === 'undefined';
+}
+exports.isPrimitive = isPrimitive;
+
+exports.isBuffer = require('./support/isBuffer');
+
+function objectToString(o) {
+  return Object.prototype.toString.call(o);
+}
+
+
+function pad(n) {
+  return n < 10 ? '0' + n.toString(10) : n.toString(10);
+}
+
+
+var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+              'Oct', 'Nov', 'Dec'];
+
+// 26 Feb 16:19:34
+function timestamp() {
+  var d = new Date();
+  var time = [pad(d.getHours()),
+              pad(d.getMinutes()),
+              pad(d.getSeconds())].join(':');
+  return [d.getDate(), months[d.getMonth()], time].join(' ');
+}
+
+
+// log is just a thin wrapper to console.log that prepends a timestamp
+exports.log = function() {
+  console.log('%s - %s', timestamp(), exports.format.apply(exports, arguments));
+};
+
+
+/**
+ * Inherit the prototype methods from one constructor into another.
+ *
+ * The Function.prototype.inherits from lang.js rewritten as a standalone
+ * function (not on Function.prototype). NOTE: If this file is to be loaded
+ * during bootstrapping this function needs to be rewritten using some native
+ * functions as prototype setup using normal JavaScript does not work as
+ * expected during bootstrapping (see mirror.js in r114903).
+ *
+ * @param {function} ctor Constructor function which needs to inherit the
+ *     prototype.
+ * @param {function} superCtor Constructor function to inherit prototype from.
+ */
+exports.inherits = require('inherits');
+
+exports._extend = function(origin, add) {
+  // Don't do anything if add isn't an object
+  if (!add || !isObject(add)) return origin;
+
+  var keys = Object.keys(add);
+  var i = keys.length;
+  while (i--) {
+    origin[keys[i]] = add[keys[i]];
+  }
+  return origin;
+};
+
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./support/isBuffer":5,"_process":4,"inherits":3}],7:[function(require,module,exports){
 'use strict';
 
-var logUtils = require('../log-utils.js'),
+var logEmitter = require('../log-emitter.js');
+
+function Appender(name, handler) {
+  this.name = name;
+  this.handler = handler;
+  logEmitter.addListener(this.name, this.handler);
+}
+
+Appender.prototype.destroy = function() {
+  logEmitter.removeListener(this.name);
+};
+
+module.exports = Appender;
+},{"../log-emitter.js":13}],8:[function(require,module,exports){
+'use strict';
+
+var util = require('util'),
+  logUtils = require('../log-utils.js'),
   logLevels = require('../log-level.js'),
-  logEmitter = require('../log-emitter.js');
+  Appender = require('./appender.js');
 
 function handler(logEvent) {
   try {
@@ -726,59 +1042,78 @@ function ConsoleAppender() {
   if (!window.console) {
     return;
   }
-
-  logEmitter.listen(handler);
+  Appender.call(this, 'console', handler);
 }
 
+util.inherits(ConsoleAppender, Appender);
+
 module.exports = ConsoleAppender;
-},{"../log-emitter.js":9,"../log-level.js":11,"../log-utils.js":12}],5:[function(require,module,exports){
+},{"../log-level.js":15,"../log-utils.js":16,"./appender.js":7,"util":6}],9:[function(require,module,exports){
 'use strict';
 
-var logUtils = require('../log-utils.js'),
-  logEmitter = require('../log-emitter.js');
+var util = require('util'),
+  logUtils = require('../log-utils.js'),
+  Appender = require('./appender.js');
 
-function CustomAppender(handler) {
+function CustomAppender(name, handler) {
   if (!logUtils.isFunction(handler)) {
     return;
   }
-
-  logEmitter.listen(handler);
+  Appender.call(this, name, handler);
 }
 
+util.inherits(CustomAppender, Appender);
+
 module.exports = CustomAppender;
-},{"../log-emitter.js":9,"../log-utils.js":12}],6:[function(require,module,exports){
+},{"../log-utils.js":16,"./appender.js":7,"util":6}],10:[function(require,module,exports){
 'use strict';
 
-var logUtils = require('../log-utils.js'),
-  le = require('le_js'),
+var util = require('util'),
+  logUtils = require('../log-utils.js'),
+  le = require('../../vendors/le.js'),
   logLevels = require('../log-level.js'),
-  logEmitter = require('../log-emitter.js');
+  Appender = require('./appender.js');
 
-function handler(logEvent) {
-  try {
-    var logFunc = le[logLevels[logEvent.level].name];
+function handler(nativeLogger) {
+  return function(logEvent) {
+    try {
+      var logFunc = nativeLogger[logLevels[logEvent.level].name];
 
-    if (logUtils.isFunction(logFunc)) {
-      logFunc(logEvent);
+      if (logUtils.isFunction(logFunc)) {
+        logFunc(logEvent);
+      }
+    } catch (ex) {
+      // do nothing
     }
-  } catch (ex) {
-    // do nothing
-  }
+  };
 }
 
 function LogEntriesAppender(token) {
+  var leLogger;
+
   if (!logUtils.isString(token) || !token) {
     return;
   }
-  le.init(token);
-  logEmitter.listen(handler);
+
+  this.token = token;
+  leLogger = le.init({
+    name: this.token,
+    token: this.token
+  });
+
+  Appender.call(this, token, handler(leLogger));
 }
 
-module.exports = LogEntriesAppender;
-},{"../log-emitter.js":9,"../log-level.js":11,"../log-utils.js":12,"le_js":3}],7:[function(require,module,exports){
-'use strict';
+util.inherits(LogEntriesAppender, Appender);
 
-//var _ = require('lodash');
+LogEntriesAppender.prototype.destroy = function() {
+  LogEntriesAppender.super_.prototype.destroy.apply(this, arguments);
+  le.destroy(this.token);
+};
+
+module.exports = LogEntriesAppender;
+},{"../../vendors/le.js":18,"../log-level.js":15,"../log-utils.js":16,"./appender.js":7,"util":6}],11:[function(require,module,exports){
+'use strict';
 
 var logUtils = require('./log-utils.js');
 
@@ -796,7 +1131,7 @@ module.exports = logUtils.reduce(config, {}, function(result, key) {
   };
   return result;
 });
-},{"./log-utils.js":12}],8:[function(require,module,exports){
+},{"./log-utils.js":16}],12:[function(require,module,exports){
 'use strict';
 
 var logUtils = require('./log-utils.js'),
@@ -810,7 +1145,7 @@ var logUtils = require('./log-utils.js'),
 var levelEnums = {},
   loggers = {},
   logAppenders = {},
-  reservedAppenderNames = ['console', 'logentries'],
+  reservedAppenderNames = ['console'],
   FindlyLog = {};
 
 function createConsoleAppender() {
@@ -846,6 +1181,13 @@ function validateAppender(name) {
   }
 }
 
+function removeAppender(name) {
+  if (!isReservedAppenderName(name) && logAppenders.hasOwnProperty(name)) {
+    logAppenders[name].destroy();
+    delete logAppenders[name];
+  }
+}
+
 levelEnums = logUtils.reduce(logLevels, {}, function(result, key) {
   result[key] = key;
   return result;
@@ -874,31 +1216,24 @@ FindlyLog.getLogger = function(logName) {
 
 FindlyLog.addCustomAppender = function (name, handler) {
   validateAppender(name);
-
   if (!logUtils.isFunction(handler)) {
     throw new Error('Invalid handler function.');
   }
 
-  logAppenders[name] = new CustomAppender(handler);
+  logAppenders[name] = new CustomAppender(name, handler);
 };
 
 FindlyLog.removeCustomAppender = function(name) {
-  if (!isReservedAppenderName(name) && logAppenders.hasOwnProperty(name)) {
-    delete logAppenders[name];
-  }
+  removeAppender(name);
 };
 
 FindlyLog.addLogEntriesAppender = function(token) {
-  if (logAppenders.logentries) {
-    throw new Error('There is an existing logentries appender.');
-  }
-  logAppenders.logentries = new LogentriesAppender(token);
+  validateAppender(token);
+  logAppenders[token] = new LogentriesAppender(token);
 };
 
-FindlyLog.removeLogEntriesAppender = function() {
-  if (logAppenders.logentries) {
-    delete logAppenders.logentries;
-  }
+FindlyLog.removeLogEntriesAppender = function(token) {
+  removeAppender(token);
 };
 
 FindlyLog.levels = levelEnums;
@@ -907,26 +1242,39 @@ FindlyLog.levels = levelEnums;
 createConsoleAppender();
 
 module.exports = FindlyLog;
-},{"./appenders/console.js":4,"./appenders/custom.js":5,"./appenders/logentries.js":6,"./config.js":7,"./log-level.js":11,"./log-utils.js":12,"./logger.js":13}],9:[function(require,module,exports){
+},{"./appenders/console.js":8,"./appenders/custom.js":9,"./appenders/logentries.js":10,"./config.js":11,"./log-level.js":15,"./log-utils.js":16,"./logger.js":17}],13:[function(require,module,exports){
 'use strict';
 
 var events = require('events'),
   logEmitter = new events.EventEmitter(),
-  evName = 'log';
+  evName = 'log',
+  listeners = {};
 
 function emit(logEvent) {
   logEmitter.emit(evName, logEvent);
 }
 
-function listen(handler) {
-  logEmitter.on(evName, handler);
+function removeListener(name) {
+  if (listeners.hasOwnProperty(name)) {
+    logEmitter.removeListener(evName, listeners[name]);
+    delete listeners[name];
+  }
 }
+
+function addListener(name, handler) {
+  if (!listeners.hasOwnProperty(name)) {
+    logEmitter.on(evName, handler);
+    listeners[name] = handler;
+  }
+}
+
 
 module.exports = {
   emit: emit,
-  listen: listen
+  addListener: addListener,
+  removeListener: removeListener
 };
-},{"events":2}],10:[function(require,module,exports){
+},{"events":2}],14:[function(require,module,exports){
 'use strict';
 
 function LogEvent(level, category, message) {
@@ -937,7 +1285,7 @@ function LogEvent(level, category, message) {
 }
 
 module.exports = LogEvent;
-},{}],11:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -962,7 +1310,7 @@ module.exports = {
     index: 0
   }
 };
-},{}],12:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 'use strict';
 
 var logUtils = {};
@@ -1010,7 +1358,7 @@ logUtils.reduce = function(coll, baseValue, func) {
 };
 
 module.exports= logUtils;
-},{}],13:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 'use strict';
 
 var logUtils = require('./log-utils.js'),
@@ -1043,4 +1391,388 @@ function Logger(logName) {
 }
 
 module.exports = Logger;
-},{"./config.js":7,"./log-emitter.js":9,"./log-event.js":10,"./log-level.js":11,"./log-utils.js":12}]},{},[1]);
+},{"./config.js":11,"./log-emitter.js":13,"./log-event.js":14,"./log-level.js":15,"./log-utils.js":16}],18:[function(require,module,exports){
+/**
+ * @license Copyright 2013 Logentries.
+ * Please view license at https://raw.github.com/logentries/le_js/master/LICENSE
+ */
+
+/*global define, module, exports */
+
+/** @param {Object} window */
+(function (root, factory) {
+  if (typeof define === 'function' && define.amd) {
+    // AMD. Register as an anonymous module.
+    define([root], factory);
+  } else if (typeof exports === 'object') {
+    // Node. Does not work with strict CommonJS, but
+    // only CommonJS-like environments that support module.exports,
+    // like Node.
+    module.exports = factory(root);
+  } else {
+    // Browser globals (root is window)
+    root.LE = factory(root);
+  }
+}(this, function(window) {
+  "use strict";
+
+  /**
+   * A single log event stream.
+   * @constructor
+   * @param {Object} options
+   */
+  function LogStream(options) {
+    /**
+     * @const
+     * @type {string} */
+    var _traceCode = (Math.random() + Math.PI).toString(36).substring(2, 10);
+    /** @type {boolean} */
+    var _doTrace = options.trace;
+    /** @type {string} */
+    var _pageInfo = options.page_info;
+    /** @type {string} */
+    var _token = options.token;
+    /** @type {boolean} */
+    var _print = options.print;
+    /**
+     * @const
+     * @type {string} */
+    var _endpoint = "js.logentries.com/v1";
+
+    /**
+     * Flag to prevent further invocations on network err
+     ** @type {boolean} */
+    var _shouldCall = true;
+    /** @type {boolean} */
+    var _SSL = function() {
+      if (typeof XDomainRequest === "undefined") {
+        return options.ssl;
+      }
+      // If we're relying on XDomainRequest, we
+      // must adhere to the page's encryption scheme.
+      return window.location.protocol === "https:" ? true : false;
+    }();
+    /** @type {Array.<string>} */
+    var _backlog = [];
+    /** @type {boolean} */
+    var _active = false;
+    /** @type {boolean} */
+    var _sentPageInfo = false;
+
+    if (options.catchall) {
+      var oldHandler = window.onerror;
+      var newHandler = function(msg, url, line) {
+        _rawLog({error: msg, line: line, location: url}).level('ERROR').send();
+        if (oldHandler) {
+          return oldHandler(msg, url, line);
+        } else {
+          return false;
+        }
+      };
+      window.onerror = newHandler;
+    }
+
+    var _agentInfo = function() {
+      var nav = window.navigator || {doNotTrack: undefined};
+      var screen = window.screen || {};
+      var location = window.location || {};
+
+      return {
+        url: location.pathname,
+        referrer: document.referrer,
+        screen: {
+          width: screen.width,
+          height: screen.height
+        },
+        window: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        },
+        browser: {
+          name: nav.appName,
+          version: nav.appVersion,
+          cookie_enabled: nav.cookieEnabled,
+          do_not_track: nav.doNotTrack
+        },
+        platform: nav.platform
+      }
+    };
+
+    var _getEvent = function() {
+      var raw = null;
+      var args = Array.prototype.slice.call(arguments);
+      if (args.length === 0) {
+        throw new Error("No arguments!");
+      } else if (args.length === 1) {
+        raw = args[0];
+      } else {
+        // Handle a variadic overload,
+        // e.g. _rawLog("some text ", x, " ...", 1);
+        raw = args;
+      }
+      return raw;
+    };
+
+    // Single arg stops the compiler arity warning
+    var _rawLog = function(msg) {
+      var event = _getEvent.apply(this, arguments);
+
+      var data = {event: event};
+
+      // Add agent info if required
+      if (_pageInfo !== 'never') {
+        if (!_sentPageInfo || _pageInfo === 'per-entry') {
+          _sentPageInfo = true;
+          if (typeof event.screen === "undefined" &&
+            typeof event.browser === "undefined")
+            _rawLog(_agentInfo()).level('PAGE').send();
+        }
+      }
+
+      // Add trace code if required
+      if (_doTrace) {
+        data.trace = _traceCode;
+      }
+
+      return {level: function(l) {
+        // Don't log PAGE events to console
+        // PAGE events are generated for the agentInfo function
+        if (_print && typeof console !== "undefined" && l !== 'PAGE') {
+          try {
+            console[l.toLowerCase()].call(console, data);
+          } catch (ex) {
+            // IE compat fix
+            console.log(data);
+          }
+        }
+        data.level = l;
+
+        return {send: function() {
+          var cache = [];
+          var serialized = JSON.stringify(data, function(key, value) {
+
+            // cross-browser indexOf fix
+            var _indexOf = function(array, obj) {
+              for (var i = 0; i < array.length; i++) {
+                if (obj === array[i]) {
+                  return i;
+                }
+              }
+              return -1;
+            }
+            if (typeof value === "undefined") {
+              return "undefined";
+            } else if (typeof value === "object" && value !== null) {
+              if (_indexOf(cache, value) !== -1) {
+                // We've seen this object before;
+                // return a placeholder instead to prevent
+                // cycles
+                return "<?>";
+              }
+              cache.push(value);
+            }
+            return value;
+          });
+
+          if (_active) {
+            _backlog.push(serialized);
+          } else {
+            _apiCall(_token, serialized);
+          }
+        }};
+      }};
+    };
+
+    /** @expose */
+    this.log = _rawLog;
+
+    var _apiCall = function(token, data) {
+      _active = true;
+
+      // Obtain a browser-specific XHR object
+      var _getAjaxObject = function() {
+        if (typeof XDomainRequest !== "undefined") {
+          // We're using IE8/9
+          return new XDomainRequest();
+        }
+        return new XMLHttpRequest();
+      };
+
+      var request = _getAjaxObject();
+
+      if (_shouldCall) {
+        if (request.constructor === XMLHttpRequest) {
+          // Currently we don't support fine-grained error
+          // handling in older versions of IE
+          request.onreadystatechange = function() {
+            if (request.readyState === 4) {
+              // Handle any errors
+              if (request.status >= 400) {
+                console.error("Couldn't submit events.");
+                if (request.status === 410) {
+                  // This API version has been phased out
+                  console.warn("This version of le_js is no longer supported!");
+                }
+              } else {
+                if (request.status === 301) {
+                  // Server issued a deprecation warning
+                  console.warn("This version of le_js is deprecated! Consider upgrading.");
+                }
+                if (_backlog.length > 0) {
+                  // Submit the next event in the backlog
+                  _apiCall(token, _backlog.shift());
+                } else {
+                  _active = false;
+                }
+              }
+            }
+
+          }
+        } else {
+          request.onload = function() {
+            if (_backlog.length > 0) {
+              // Submit the next event in the backlog
+              _apiCall(token, _backlog.shift());
+            } else {
+              _active = false;
+            }
+          }
+        }
+
+        var uri = (_SSL ? "https://" : "http://") + _endpoint + "/logs/" + _token;
+        request.open("POST", uri, true);
+        if (request.constructor === XMLHttpRequest) {
+          request.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+          request.setRequestHeader('Content-type', 'text/json');
+        }
+        request.send(data);
+      }
+    };
+  }
+
+  /**
+   * A single log object
+   * @constructor
+   * @param {Object} options
+   */
+  function Logger(options) {
+    var logger;
+
+    // Default values
+    var dict = {
+      ssl: true,
+      catchall: false,
+      trace: true,
+      page_info: 'never',
+      print: false,
+      token: null
+    };
+
+    if (typeof options === "object")
+      for (var k in options)
+        dict[k] = options[k];
+    else
+      throw new Error("Invalid parameters for createLogStream()");
+
+    if (dict.token === null) {
+      throw new Error("Token not present.");
+    } else {
+      logger = new LogStream(dict);
+    }
+
+    var _log = function(msg) {
+      if (logger) {
+        return logger.log.apply(this, arguments);
+      } else
+        throw new Error("You must call LE.init(...) first.");
+    };
+
+    // The public interface
+    return {
+      log: function() {
+        _log.apply(this, arguments).level('LOG').send();
+      },
+      warn: function() {
+        _log.apply(this, arguments).level('WARN').send();
+      },
+      error: function() {
+        _log.apply(this, arguments).level('ERROR').send();
+      },
+      info: function() {
+        _log.apply(this, arguments).level('INFO').send();
+      }
+    };
+  }
+
+  // Array of Logger elements
+  var loggers = {};
+
+  var _getLogger = function(name) {
+    if (!loggers.hasOwnProperty(name))
+      throw new Error("Invalid name for logStream");
+
+    return loggers[name]
+  };
+
+  var  _createLogStream = function(options) {
+    if (typeof options.name !== "string")
+      throw new Error("Name not present.");
+    else if (loggers.hasOwnProperty(options.name))
+      throw new Error("Already exist this name for a logStream");
+
+    loggers[options.name] = new Logger(options);
+
+    // ClientLogger: instead of returning TRUE, we change it and return the logger object instead
+    return loggers[options.name];
+  };
+
+  var _deprecatedInit = function(options) {
+    var dict = {
+      name : "default"
+    };
+
+    if (typeof options === "object")
+      for (var k in options)
+        dict[k] = options[k];
+    else if (typeof options === "string")
+      dict.token = options;
+    else
+      throw new Error("Invalid parameters for init()");
+
+    return _createLogStream(dict);
+  };
+
+  var _destroyLogStream = function(name) {
+    if (typeof name === 'undefined'){
+      name = 'default';
+    }
+
+    delete loggers[name];
+  };
+
+  // The public interface
+  return {
+    init: _deprecatedInit,
+    createLogStream: _createLogStream,
+    to: _getLogger,
+    destroy: _destroyLogStream,
+    log: function() {
+      for (var k in loggers)
+        loggers[k].log.apply(this, arguments);
+    },
+    warn: function() {
+      for (var k in loggers)
+        loggers[k].warn.apply(this, arguments);
+    },
+    error: function() {
+      for (var k in loggers)
+        loggers[k].error.apply(this, arguments);
+    },
+    info: function() {
+      for (var k in loggers)
+        loggers[k].info.apply(this, arguments);
+    }
+  };
+}));
+
+},{}]},{},[1]);

@@ -3,11 +3,11 @@
 <head>
     <title>Findly Logger</title>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
-    <script src="../dist/findly.logger.min.js"></script>
+    <script src="../dist/findly.logger.js"></script>
     <script type="text/javascript">
         var log;
         $(document).ready(function(){
-            log = FindlyLogger.getLogger('test');
+            log = FindlyLog.getLogger('test');
             log.error('ouch!!');
         });
     </script>

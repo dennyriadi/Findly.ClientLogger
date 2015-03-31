@@ -9,6 +9,7 @@ var gulp = require('gulp'),
   uglify = require('gulp-uglify'),
   buffer = require('vinyl-buffer'),
   source = require('vinyl-source-stream'),
+  karma = require('karma').server,
   pkg = require('./package.json');
 
 var outputFilenames = {
@@ -16,8 +17,18 @@ var outputFilenames = {
   min: 'findly.logger.min.js'
 };
 
+function browserifyAliases(b, aliases) {
+  if (b && aliases && aliases.length > 0) {
+    for (var i = 0; i < aliases.length; i++) {
+      var alias = aliases[i].split(':');
+      b.require(alias[0], { expose: (alias[1] || alias[0]) });
+    }
+  }
+  return b;
+}
+
 gulp.task('lint', function () {
-  return gulp.src(['./src/**/*.js'])
+  return gulp.src(['./src/**/*.js', './test/specs/*.js'])
     .pipe(jshint())
     .pipe(jshint.reporter(stylish));
 });
@@ -43,6 +54,29 @@ gulp.task('build', function () {
   return browserifyOutput();
 });
 
+gulp.task('browserify-test', function () {
+  var b = browserifyAliases(
+    browserify(pkg.main),
+    [
+      './src/log-utils.js:log-utils'
+    ]);
+
+  return b
+    .transform('browserify-istanbul')
+    .bundle()
+    .pipe(source(outputFilenames.full))
+    .pipe(gulp.dest('./test/dist/'));
+});
+
+gulp.task('test', ['browserify-test'], function (done) {
+  karma.start({
+    configFile: __dirname + '/karma.conf.js'
+  }, function(exitCode) {
+    done();
+    process.exit(exitCode);
+  });
+});
+
 gulp.task('default', function() {
-  runSequence('lint', 'build');
+  runSequence('lint', 'build', 'test');
 });

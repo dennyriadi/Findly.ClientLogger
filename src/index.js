@@ -12,5 +12,5 @@ if (typeof window.define === 'function' && window.define.amd) {
   module.exports = createLog();
 } else {
   // No AMD or CommonJS support so we place log4javascript in (probably) the global variable
-  window.FindlyLogger = createLog();
+  window.FindlyLog = createLog();
 }

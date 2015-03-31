@@ -11,7 +11,7 @@ var logUtils = require('./log-utils.js'),
 var levelEnums = {},
   loggers = {},
   logAppenders = {},
-  reservedAppenderNames = ['console', 'logentries'],
+  reservedAppenderNames = ['console'],
   FindlyLog = {};
 
 function createConsoleAppender() {
@@ -47,6 +47,13 @@ function validateAppender(name) {
   }
 }
 
+function removeAppender(name) {
+  if (!isReservedAppenderName(name) && logAppenders.hasOwnProperty(name)) {
+    logAppenders[name].destroy();
+    delete logAppenders[name];
+  }
+}
+
 levelEnums = logUtils.reduce(logLevels, {}, function(result, key) {
   result[key] = key;
   return result;
@@ -75,31 +82,24 @@ FindlyLog.getLogger = function(logName) {
 
 FindlyLog.addCustomAppender = function (name, handler) {
   validateAppender(name);
-
   if (!logUtils.isFunction(handler)) {
     throw new Error('Invalid handler function.');
   }
 
-  logAppenders[name] = new CustomAppender(handler);
+  logAppenders[name] = new CustomAppender(name, handler);
 };
 
 FindlyLog.removeCustomAppender = function(name) {
-  if (!isReservedAppenderName(name) && logAppenders.hasOwnProperty(name)) {
-    delete logAppenders[name];
-  }
+  removeAppender(name);
 };
 
 FindlyLog.addLogEntriesAppender = function(token) {
-  if (logAppenders.logentries) {
-    throw new Error('There is an existing logentries appender.');
-  }
-  logAppenders.logentries = new LogentriesAppender(token);
+  validateAppender(token);
+  logAppenders[token] = new LogentriesAppender(token);
 };
 
-FindlyLog.removeLogEntriesAppender = function() {
-  if (logAppenders.logentries) {
-    delete logAppenders.logentries;
-  }
+FindlyLog.removeLogEntriesAppender = function(token) {
+  removeAppender(token);
 };
 
 FindlyLog.levels = levelEnums;

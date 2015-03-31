@@ -1,97 +1,127 @@
 # Findly.ClientLogger
 
-Common JS logging library on the browser
+A lightweight client logging library that works on the browser.
 
 ## Getting Started
 
 ### Direct Usage in your page
 
 ```html
-<script src="dist/findly.logger.js"></script>
+<script src="dist/findly.logger.min.js"></script>
 <script>
-var poliLog = FindlyLogger.getLogger('Pollinator');
+  var newLog = FindlyLog.getLogger('NewLog');
 </script>
 ```
 
-### As a module
+### As a module in CommonJS/ NodeJS environment
 
-```html
-var findlyLogger = require('findly-client-logger'),;
-  logger = findlyLogger.getLogger('Pollinator');
+```javascript
+var findlyLog = require('findly-client-logger'),
+  newLog = findlyLog.getLogger('NewLog');
+```
+
+### As a dependency in AMD/ RequireJS environment
+
+```javascript
+define(["./lib/findly.logger.min.js"], function(findlyLog) {
+    return function(logName) {
+        return findlyLog.getLogger(logName);
+    };
+  }
+);
 ```
 
 ## Log Levels
 
-There are 7 log levels:
-* TRACE
-* DEBUG
-* INFO (Default)
-* WARN
-* ERROR
-* FATAL
-* OFF
+*FindlyLog.levels* attribute is used to access all log levels.
 
-Examples to configure log levels:
+The library contains 5 levels of logging:
+* **DEBUG**
+* **INFO (Default)**
+* **WARN**
+* **ERROR**
+* **OFF**
 
-```html
-// Log level enums
-var errorLogLevel = FindlyLogger.logLevels.ERROR;
+ ```javascript
+var infoLogLevel = FindlyLog.levels.INFO;
 
+// Will print "WARN" on alert dialog box.
+alert(FindlyLog.levels.WARN);
+```
+
+### Specifying and reading log level
+
+*FindlyLog.logLevel()* function is used to read/ write current log level. The library only captures logs which level's is lower than or equal to current log level (e.g. setting current log level to WARN will not capture DEBUG nor INFO logs)
+
+```javascript
 // Getting current log level
-var logLevel = FindlyLogger.logLevel();
+var logLevel = FindlyLog.logLevel();
 
-// Setting new log level (as usual, setting lower level will surpress higher level logging)
-FindlyLogger.logLevel(errorLogLevel);    //Only ERROR and FATAL logs will be recorded
+// Setting new log level
+FindlyLog.logLevel(FindlyLog.levels.OFF);    //Will turn off all logs
 ```
 
 ## Logger
 
 ### Creating new logger object
 
-```html
-var newLogger = FindlyLogger.getLogger("NewLogger");
-```
-
-Logger object consists of various functions that log message depending on its specific log level. Example output will look like:
-
-*[16 Mar 2015 15:37:27 | INFO] NewLogger - This is an example of info message.*
-
-```html
-newLogger.trace(message[, message2, ... ][, exception]);
-newLogger.debug(message[, message2, ... ][, exception]);
-newLogger.info(message[, message2, ... ][, exception]);
-newLogger.warn(message[, message2, ... ][, exception]);
-newLogger.error(message[, message2, ... ][, exception]);
-newLogger.fatal(message[, message2, ... ][, exception]);
-```
-
-## Log Appender
-
-Currently, Findly Client Logger supports adding/ removing AJAX only appenders. This means that it allows log messages to be send to the server via HTTP POST request. Examples of adding/ removing appenders:
-
-```html
-// Telling logger to send log messages to http://localhost:8081/log
-FindlyLogger.addAppender('http://localhost:8081/log');
-// Adding a new log server
-FindlyLogger.addAppender('http://findly-log/log');
-// Remove an existing appender
-FindlyLogger.removeAppender('http://localhost:8081/log');
-```
-
-An example of POST data sent by the API:
 ```javascript
-{
-  "data": [
-    {
-      "logger": "NewLogger",
-      "timestamp": 1426474210652,
-      "level": "WARN",
-      "url": "http://localhost:63342/test/test.html",
-      "message": "This is an example of warning message."
-    }
-  ]
-  "layout": "JsonLayout"
-}
+var newLogger = FindlyLog.getLogger("NewLogger");
+```
+
+### Capturing logs using *Logger* object
+
+Logger object consists of various functions that write log message depending on its specific log level.
+
+```javascript
+var message = 'This is a log message.';
+newLogger.debug(message);
+newLogger.info(message);
+newLogger.warn(message);
+newLogger.error({code: 404, message: 'Not Found'});
+```
+
+## Log Appenders
+
+### Console Appender
+
+The library by default generates console appender. This means that browsers (ones that support *window.console*) will start printing log messages when logger object is created and used.
+
+Console output will look like:
+
+```
+[Mon Mar 30 2015 15:29:32 GMT+1300 (New Zealand Daylight Time) | INFO] NewLogger: This is a log message.
+
+[Mon Mar 30 2015 15:29:32 GMT+1300 (New Zealand Daylight Time) | ERROR] NewLogger: {"code":404,"message":"Not Found"}
+```
+
+### Logentries Appender
+
+The library supports sending log messages to LogEntries server for further debugging and monitoring. *FindlyLog.addLogEntriesAppender()* and *FindlyLog.removeLogEntriesAppender()* functions are used to initialize and remove the appender respectively.
+
+```javascript
+// adding new logentries appender
+FindlyLog.addLogEntriesAppender('logEntriesToken');
+
+// removing existing appender
+FindlyLog.removeLogEntriesAppender('logEntriesToken');
+```
+
+### Custom Appender
+
+There may be a situation where a team needs to implement a custom log handler. The library allows the consumer app to attach and remove custom log handler by calling *FindlyLog.addCustomAppender()* and *FindlyLog.removeCustomAppender()* functions respectively. The custom handler function should expect to receive input parameter called *logEvent* (please see [LogEvent section in Appendix](#logEvent) for more information about the object.
+
+```javascript
+var customLogName = 'myCustomLogAppender',
+  handler = function(logEvent) {
+    // do something with the logEvent
+  };
+
+// adding new custom appender
+FindlyLog.addCustomAppender(customLogName, handler);
+
+// removing existing appender
+FindlyLog.removeCustomAppender(customLogName);
 ```
 
 ## Release History

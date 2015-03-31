@@ -1,28 +1,46 @@
 'use strict';
 
-var logUtils = require('../log-utils.js'),
-  le = require('le_js'),
+var util = require('util'),
+  logUtils = require('../log-utils.js'),
+  le = require('../../vendors/le.js'),
   logLevels = require('../log-level.js'),
-  logEmitter = require('../log-emitter.js');
+  Appender = require('./appender.js');
 
-function handler(logEvent) {
-  try {
-    var logFunc = le[logLevels[logEvent.level].name];
+function handler(nativeLogger) {
+  return function(logEvent) {
+    try {
+      var logFunc = nativeLogger[logLevels[logEvent.level].name];
 
-    if (logUtils.isFunction(logFunc)) {
-      logFunc(logEvent);
+      if (logUtils.isFunction(logFunc)) {
+        logFunc(logEvent);
+      }
+    } catch (ex) {
+      // do nothing
     }
-  } catch (ex) {
-    // do nothing
-  }
+  };
 }
 
 function LogEntriesAppender(token) {
+  var leLogger;
+
   if (!logUtils.isString(token) || !token) {
     return;
   }
-  le.init(token);
-  logEmitter.listen(handler);
+
+  this.token = token;
+  leLogger = le.init({
+    name: this.token,
+    token: this.token
+  });
+
+  Appender.call(this, token, handler(leLogger));
 }
+
+util.inherits(LogEntriesAppender, Appender);
+
+LogEntriesAppender.prototype.destroy = function() {
+  LogEntriesAppender.super_.prototype.destroy.apply(this, arguments);
+  le.destroy(this.token);
+};
 
 module.exports = LogEntriesAppender;

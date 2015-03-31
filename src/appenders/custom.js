@@ -1,14 +1,16 @@
 'use strict';
 
-var logUtils = require('../log-utils.js'),
-  logEmitter = require('../log-emitter.js');
+var util = require('util'),
+  logUtils = require('../log-utils.js'),
+  Appender = require('./appender.js');
 
-function CustomAppender(handler) {
+function CustomAppender(name, handler) {
   if (!logUtils.isFunction(handler)) {
     return;
   }
-
-  logEmitter.listen(handler);
+  Appender.call(this, name, handler);
 }
+
+util.inherits(CustomAppender, Appender);
 
 module.exports = CustomAppender;
