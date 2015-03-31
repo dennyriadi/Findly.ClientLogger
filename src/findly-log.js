@@ -86,7 +86,7 @@ FindlyLog.addCustomAppender = function (name, handler) {
     throw new Error('Invalid handler function.');
   }
 
-  logAppenders[name] = new CustomAppender(name, handler);
+  logAppenders[name] = new CustomAppender(handler);
 };
 
 FindlyLog.removeCustomAppender = function(name) {

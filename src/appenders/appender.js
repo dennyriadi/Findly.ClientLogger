@@ -2,14 +2,13 @@
 
 var logEmitter = require('../log-emitter.js');
 
-function Appender(name, handler) {
-  this.name = name;
+function Appender(handler) {
   this.handler = handler;
-  logEmitter.addListener(this.name, this.handler);
+  logEmitter.addListener(this.handler);
 }
 
 Appender.prototype.destroy = function() {
-  logEmitter.removeListener(this.name);
+  logEmitter.removeListener(this.handler);
 };
 
 module.exports = Appender;

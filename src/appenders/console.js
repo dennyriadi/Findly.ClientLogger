@@ -23,7 +23,7 @@ function ConsoleAppender() {
   if (!window.console) {
     return;
   }
-  Appender.call(this, 'console', handler);
+  Appender.call(this, handler);
 }
 
 util.inherits(ConsoleAppender, Appender);

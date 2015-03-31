@@ -1,26 +1,19 @@
 'use strict';
 
 var events = require('events'),
-  logEmitter = new events.EventEmitter(),
-  evName = 'log',
-  listeners = {};
+  eventEmitter = new events.EventEmitter(),
+  evName = 'log';
 
 function emit(logEvent) {
-  logEmitter.emit(evName, logEvent);
+  eventEmitter.emit(evName, logEvent);
 }
 
-function removeListener(name) {
-  if (listeners.hasOwnProperty(name)) {
-    logEmitter.removeListener(evName, listeners[name]);
-    delete listeners[name];
-  }
+function removeListener(handler) {
+  eventEmitter.removeListener(evName, handler);
 }
 
-function addListener(name, handler) {
-  if (!listeners.hasOwnProperty(name)) {
-    logEmitter.on(evName, handler);
-    listeners[name] = handler;
-  }
+function addListener(handler) {
+  eventEmitter.on(evName, handler);
 }
 
 module.exports = {

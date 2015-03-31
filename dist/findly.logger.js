@@ -1005,14 +1005,13 @@ function hasOwnProperty(obj, prop) {
 
 var logEmitter = require('../log-emitter.js');
 
-function Appender(name, handler) {
-  this.name = name;
+function Appender(handler) {
   this.handler = handler;
-  logEmitter.addListener(this.name, this.handler);
+  logEmitter.addListener(this.handler);
 }
 
 Appender.prototype.destroy = function() {
-  logEmitter.removeListener(this.name);
+  logEmitter.removeListener(this.handler);
 };
 
 module.exports = Appender;
@@ -1042,7 +1041,7 @@ function ConsoleAppender() {
   if (!window.console) {
     return;
   }
-  Appender.call(this, 'console', handler);
+  Appender.call(this, handler);
 }
 
 util.inherits(ConsoleAppender, Appender);
@@ -1055,11 +1054,11 @@ var util = require('util'),
   logUtils = require('../log-utils.js'),
   Appender = require('./appender.js');
 
-function CustomAppender(name, handler) {
+function CustomAppender(handler) {
   if (!logUtils.isFunction(handler)) {
     return;
   }
-  Appender.call(this, name, handler);
+  Appender.call(this, handler);
 }
 
 util.inherits(CustomAppender, Appender);
@@ -1101,7 +1100,7 @@ function LogEntriesAppender(token) {
     token: this.token
   });
 
-  Appender.call(this, token, handler(leLogger));
+  Appender.call(this, handler(leLogger));
 }
 
 util.inherits(LogEntriesAppender, Appender);
@@ -1220,7 +1219,7 @@ FindlyLog.addCustomAppender = function (name, handler) {
     throw new Error('Invalid handler function.');
   }
 
-  logAppenders[name] = new CustomAppender(name, handler);
+  logAppenders[name] = new CustomAppender(handler);
 };
 
 FindlyLog.removeCustomAppender = function(name) {
@@ -1246,28 +1245,20 @@ module.exports = FindlyLog;
 'use strict';
 
 var events = require('events'),
-  logEmitter = new events.EventEmitter(),
-  evName = 'log',
-  listeners = {};
+  eventEmitter = new events.EventEmitter(),
+  evName = 'log';
 
 function emit(logEvent) {
-  logEmitter.emit(evName, logEvent);
+  eventEmitter.emit(evName, logEvent);
 }
 
-function removeListener(name) {
-  if (listeners.hasOwnProperty(name)) {
-    logEmitter.removeListener(evName, listeners[name]);
-    delete listeners[name];
-  }
+function removeListener(handler) {
+  eventEmitter.removeListener(evName, handler);
 }
 
-function addListener(name, handler) {
-  if (!listeners.hasOwnProperty(name)) {
-    logEmitter.on(evName, handler);
-    listeners[name] = handler;
-  }
+function addListener(handler) {
+  eventEmitter.on(evName, handler);
 }
-
 
 module.exports = {
   emit: emit,

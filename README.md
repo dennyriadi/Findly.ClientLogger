@@ -109,7 +109,7 @@ FindlyLog.removeLogEntriesAppender('logEntriesToken');
 
 ### Custom Appender
 
-There may be a situation where a team needs to implement a custom log handler. The library allows the consumer app to attach and remove custom log handler by calling *FindlyLog.addCustomAppender()* and *FindlyLog.removeCustomAppender()* functions respectively. The custom handler function should expect to receive input parameter called *logEvent* (please see [LogEvent section in Appendix](#logEvent) for more information about the object.
+There may be a situation where a team needs to implement a custom log handler. The library allows the consumer app to attach and remove custom log handler by calling *FindlyLog.addCustomAppender()* and *FindlyLog.removeCustomAppender()* functions respectively. The custom handler function should expect to receive input parameter called *logEvent* (please see [LogEvent section in Appendix](#LogEvent) for more information about the object.
 
 ```javascript
 var customLogName = 'myCustomLogAppender',
@@ -122,6 +122,30 @@ FindlyLog.addCustomAppender(customLogName, handler);
 
 // removing existing appender
 FindlyLog.removeCustomAppender(customLogName);
+```
+
+## Appendix
+
+### LogEvent
+
+Attributes:
+
+| Attr Name     | Type          |
+| ------------- | -------------:|
+| level         | string        |
+| category      | string        |
+| message       | string/JSON   |
+| timestamp     | number        |
+
+
+Example:
+```javascript
+logEvent = {
+  "level": "WARN",
+  "category": "SomeObj",
+  "message": "This is a warning message!",
+  "timestamp: 1427761088516
+}
 ```
 
 ## Release History

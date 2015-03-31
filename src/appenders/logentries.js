@@ -33,7 +33,7 @@ function LogEntriesAppender(token) {
     token: this.token
   });
 
-  Appender.call(this, token, handler(leLogger));
+  Appender.call(this, handler(leLogger));
 }
 
 util.inherits(LogEntriesAppender, Appender);
