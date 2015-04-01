@@ -1,0 +1,27 @@
+{
+  "name": "findly-client-logger",
+  "version": "0.1.0",
+  "homepage": "https://github.com/dennyriadi/Findly.ClientLogger",
+  "authors": [
+    "Denny Riadi <denny.riadi@findly.com>"
+  ],
+  "description": "A lightweight client logging library that works on the browser.",
+  "main": ["findly.logger.js", "findly.logger.min.js"],
+  "moduleType": [
+    "amd",
+    "globals",
+    "node"
+  ],
+  "keywords": [
+    "logging"
+  ],
+  "license": "Findly",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "vendors",
+    "src"
+  ]
+}
