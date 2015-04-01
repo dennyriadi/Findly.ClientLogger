@@ -22,6 +22,10 @@
     "bower_components",
     "test",
     "vendors",
-    "src"
+    "src",
+    "bower.json",
+    "package.json",
+    "gulpfile.js",
+    "karma.conf.js"
   ]
 }
