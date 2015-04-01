@@ -4,7 +4,11 @@ A lightweight client logging library that works on the browser.
 
 ## Getting Started
 
-### Direct Usage in your page
+### Package manager supports
+
+The library is obtainable through *npm* and *bower*.
+
+### Direct usage in your page
 
 ```html
 <script src="dist/findly.logger.min.js"></script>
@@ -42,16 +46,17 @@ The library contains 5 levels of logging:
 * **ERROR**
 * **OFF**
 
- ```javascript
+
+```javascript
 var infoLogLevel = FindlyLog.levels.INFO;
 
 // Will print "WARN" on alert dialog box.
 alert(FindlyLog.levels.WARN);
 ```
 
-### Specifying and reading log level
+### Getting and setting log level
 
-*FindlyLog.logLevel()* function is used to read/ write current log level. The library only captures logs which level's is lower than or equal to current log level (e.g. setting current log level to WARN will not capture DEBUG nor INFO logs)
+*FindlyLog.logLevel()* function is used to read/ write current log level. The library only captures logs which level are lower than or equal to current log level (e.g. setting current log level to WARN will not capture DEBUG nor INFO logs)
 
 ```javascript
 // Getting current log level
@@ -69,9 +74,9 @@ FindlyLog.logLevel(FindlyLog.levels.OFF);    //Will turn off all logs
 var newLogger = FindlyLog.getLogger("NewLogger");
 ```
 
-### Capturing logs using *Logger* object
+### Writing log messages using *Logger* object
 
-Logger object consists of various functions that write log message depending on its specific log level.
+Logger object consists of various functions that write log message with a specific log level.
 
 ```javascript
 var message = 'This is a log message.';

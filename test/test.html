@@ -5,14 +5,48 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
     <script src="../dist/findly.logger.js"></script>
     <script type="text/javascript">
-        var log;
+        var log,
+            customLogAppender = function(logLevel) {
+                var style = {
+                    DEBUG: 'blue',
+                    INFO: 'green',
+                    WARN: 'orange',
+                    ERROR: 'red'
+                };
+
+                var logMsg = '[' + logLevel.level + '] ' +
+                    logLevel.category + ': ' +
+                    logLevel.message ;
+
+                $('#logList').append('<li style="color: '+ style[logLevel.level] + '">' + logMsg + '</li>');
+            };
+
+
         $(document).ready(function(){
-            log = FindlyLog.getLogger('test');
+            log = FindlyLog.getLogger('MyLogger');
             log.error('ouch!!');
+
+            $('#btnSend').click(function() {
+                var msg = $('#txtMsg').val(),
+                    method = $('#ddlLevel :selected').text();
+                log[method].call(log, msg);
+            });
         });
     </script>
 </head>
 <body>
-
+    <h1>The best test site ever!!!!</h1>
+    <div>
+        <select id="ddlLevel">
+            <option>debug</option>
+            <option>info</option>
+            <option>warn</option>
+            <option>error</option>
+        </select>
+        <input type="text" id="txtMsg" />
+        <input type="button" id="btnSend" value="Send" />
+    </div>
+    <ul id="logList" style="list-style-type: none; padding-left: 0">
+    </ul>
 </body>
 </html>
