@@ -19,10 +19,15 @@ logUtils.isArray = function(input) {
 };
 
 logUtils.forEach = function(coll, func) {
+  if (!this.isFunction(func)) {
+    return;
+  }
+
   if (this.isArray(coll)) {
     for (var i = 0; i < coll.length; i++) {
       func(coll[i]);
     }
+    return;
   }
 
   if (!this.isObject(coll)) {

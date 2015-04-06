@@ -21,8 +21,8 @@
                 $('#logList').append('<li style="color: '+ style[logLevel.level] + '">' + logMsg + '</li>');
             };
 
-
         $(document).ready(function(){
+            FindlyLog.addCustomAppender('MyCustomAppender', customLogAppender);
             log = FindlyLog.getLogger('MyLogger');
             log.error('ouch!!');
 

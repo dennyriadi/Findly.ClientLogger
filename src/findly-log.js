@@ -60,11 +60,24 @@ levelEnums = logUtils.reduce(logLevels, {}, function(result, key) {
 });
 
 FindlyLog.logLevel = function(level) {
+  var throwUnknownLevelError = function(lvl) {
+    throw new Error('Unknown log level: ' + lvl);
+  };
+
   if (arguments.length === 0) {
     return config.level();
-  } else if (levelEnums.hasOwnProperty(level)) {
-    config.level(level);
   }
+
+  if (!logUtils.isString(level)) {
+    throwUnknownLevelError(level);
+  }
+
+  level = level.toUpperCase();
+  if (!levelEnums.hasOwnProperty(level.toUpperCase())) {
+    throwUnknownLevelError(level);
+  }
+
+  config.level(level);
 };
 
 FindlyLog.getLogger = function(logName) {

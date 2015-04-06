@@ -58,7 +58,13 @@ gulp.task('browserify-test', function () {
   var b = browserifyAliases(
     browserify(pkg.main),
     [
-      './src/log-utils.js:log-utils'
+      './src/config.js:config',
+      './src/findly-log.js:findly-log',
+      './src/log-event.js:log-event',
+      './src/log-emitter.js:log-emitter',
+      './src/log-utils.js:log-utils',
+      './src/logger.js:logger',
+      './src/appenders/appender.js:appender'
     ]);
 
   return b
